@@ -76,21 +76,15 @@ fn main() {
         }
     };
 
-    // Open target device - try O_DIRECT first, fall back to normal mode
+    // Open target device with sync for data integrity
     let mut target_file = match OpenOptions::new()
         .write(true)
-        .custom_flags(libc::O_DIRECT | libc::O_SYNC)
+        .custom_flags(libc::O_SYNC)
         .open(target_path)
     {
-        Ok(file) => {
-            println!("📡 Using direct I/O mode for optimal performance");
-            file
-        }
+        Ok(file) => file,
         Err(_) => match OpenOptions::new().write(true).open(target_path) {
-            Ok(file) => {
-                println!("⚠️  Using buffered I/O mode (direct I/O not available)");
-                file
-            }
+            Ok(file) => file,
             Err(e) => {
                 eprintln!("Error: Cannot open target device '{}': {}", target_path, e);
                 eprintln!("Make sure you have permission (try sudo) and the device exists.");
@@ -222,12 +216,7 @@ fn copy_with_progress(
     total_size: u64,
     buffer_size: usize,
 ) -> io::Result<()> {
-    // For O_DIRECT, we need aligned buffers and aligned I/O sizes
-    const BLOCK_SIZE: usize = 4096;
-    let aligned_buffer_size = (buffer_size + BLOCK_SIZE - 1) & !(BLOCK_SIZE - 1);
-
-    // Create aligned buffer
-    let mut buffer = vec![0u8; aligned_buffer_size];
+    let mut buffer = vec![0u8; buffer_size];
 
     let mut total_written = 0u64;
     let start_time = Instant::now();
@@ -239,23 +228,8 @@ fn copy_with_progress(
             break;
         }
 
-        // For O_DIRECT, pad the last block if necessary
-        let bytes_to_write = if bytes_read < aligned_buffer_size {
-            // This is the last read - pad to block boundary if needed
-            let padded_size = (bytes_read + BLOCK_SIZE - 1) & !(BLOCK_SIZE - 1);
-            // Zero out the padding area
-            for i in bytes_read..padded_size {
-                buffer[i] = 0;
-            }
-            // But only count the actual data for progress tracking
-            target.write_all(&buffer[..padded_size])?;
-            bytes_read
-        } else {
-            target.write_all(&buffer[..bytes_read])?;
-            bytes_read
-        };
-
-        total_written += bytes_to_write as u64;
+        target.write_all(&buffer[..bytes_read])?;
+        total_written += bytes_read as u64;
 
         // Update progress every 100ms
         if last_update.elapsed().as_millis() >= 100 {
