@@ -1,7 +1,18 @@
 [package]
 name = "mkdev"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "A disk image writing utility with progress tracking and auto-optimization"
+keywords.workspace = true
+categories.workspace = true
+
+[[bin]]
+name = "mkdev"
+path = "src/main.rs"
 
 [dependencies]
-libc = "0.2"
+libc.workspace = true
