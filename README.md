@@ -30,7 +30,7 @@ The easiest way to build and install both tools:
 ./install.sh
 ```
 
-This will install both `mkdev` and `sig` to `/usr/local/bin` by default.
+This will install all tools to `/usr/local/bin` by default.
 
 ### Custom Installation
 
@@ -161,72 +161,8 @@ sig 15 chrome --all
 ## 📋 Requirements
 
 - **Rust** 1.70+ (install from [rustup.rs](https://rustup.rs/))
-- **Linux** (both tools use Linux-specific system calls)
+- **Linux** (tools use Linux-specific system calls)
 - **libc** (automatically handled by Cargo)
-
-## 🚧 Development
-
-### Project Structure
-
-```
-splash-cli-utils/
-├── Cargo.toml          # Workspace configuration
-├── Makefile           # Build automation
-├── install.sh         # Installation script
-├── mkdev/             # Disk image writer
-│   ├── Cargo.toml
-│   └── src/main.rs
-└── signals/           # Signal management tool
-    ├── Cargo.toml
-    └── src/main.rs
-```
-
-### Development Commands
-
-```bash
-# Format code
-make fmt
-
-# Run linter
-make clippy
-
-# Check without building
-make check
-
-# Run tests
-make test
-
-# Development build
-make dev-build
-
-# Get project info
-make info
-```
-
-### Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Run tests and linting: `make test && make clippy`
-5. Submit a pull request
-
-## 🔧 Uninstallation
-
-```bash
-# Using the install script
-./install.sh --uninstall
-
-# Using make
-make uninstall
-
-# Manual removal
-rm /usr/local/bin/mkdev /usr/local/bin/sig
-```
-
-## 📄 License
-
-This project is dual-licensed under MIT OR Apache-2.0. See the LICENSE file for details.
 
 ## 🤝 Acknowledgments
 
