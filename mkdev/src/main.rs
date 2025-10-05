@@ -1,6 +1,6 @@
 use std::env;
 use std::fs::{File, OpenOptions};
-use std::io::{self, BufReader, BufWriter, Read, Seek, SeekFrom, Write};
+use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::os::unix::fs::OpenOptionsExt;
 use std::process;
 use std::time::Instant;
@@ -217,29 +217,45 @@ fn detect_optimal_buffer_size(
 }
 
 fn copy_with_progress(
-    source: File,
-    target: File,
+    mut source: File,
+    mut target: File,
     total_size: u64,
     buffer_size: usize,
 ) -> io::Result<()> {
-    let mut reader = BufReader::with_capacity(buffer_size, source);
-    let mut writer = BufWriter::with_capacity(buffer_size, target);
-    // Ensure buffer is aligned for O_DIRECT (align to 4KB boundary)
-    let aligned_size = (buffer_size + 4095) & !4095;
-    let mut buffer = vec![0u8; aligned_size];
+    // For O_DIRECT, we need aligned buffers and aligned I/O sizes
+    const BLOCK_SIZE: usize = 4096;
+    let aligned_buffer_size = (buffer_size + BLOCK_SIZE - 1) & !(BLOCK_SIZE - 1);
+
+    // Create aligned buffer
+    let mut buffer = vec![0u8; aligned_buffer_size];
 
     let mut total_written = 0u64;
     let start_time = Instant::now();
     let mut last_update = Instant::now();
 
     loop {
-        let bytes_read = reader.read(&mut buffer[..buffer_size])?;
+        let bytes_read = source.read(&mut buffer)?;
         if bytes_read == 0 {
             break;
         }
 
-        writer.write_all(&buffer[..bytes_read])?;
-        total_written += bytes_read as u64;
+        // For O_DIRECT, pad the last block if necessary
+        let bytes_to_write = if bytes_read < aligned_buffer_size {
+            // This is the last read - pad to block boundary if needed
+            let padded_size = (bytes_read + BLOCK_SIZE - 1) & !(BLOCK_SIZE - 1);
+            // Zero out the padding area
+            for i in bytes_read..padded_size {
+                buffer[i] = 0;
+            }
+            // But only count the actual data for progress tracking
+            target.write_all(&buffer[..padded_size])?;
+            bytes_read
+        } else {
+            target.write_all(&buffer[..bytes_read])?;
+            bytes_read
+        };
+
+        total_written += bytes_to_write as u64;
 
         // Update progress every 100ms
         if last_update.elapsed().as_millis() >= 100 {
@@ -265,12 +281,8 @@ fn copy_with_progress(
         }
     }
 
-    // Flush any remaining data
-    writer.flush()?;
-
     // Final sync to ensure all data is written
-    let target_file = writer.into_inner()?;
-    target_file.sync_all()?;
+    target.sync_all()?;
 
     let elapsed = start_time.elapsed().as_secs_f64();
     let avg_speed = total_written as f64 / elapsed / 1_000_000.0;
